@@ -1,0 +1,88 @@
+name: Template v1.0
+
+
+on:
+  push:
+    branches: [ "main","develop" ]
+  pull_request:
+    branches: [ "main","develop" ]
+
+  workflow_dispatch:
+
+#Crear los siguientes secrets en github dentro del proyecto
+
+
+jobs:
+  Import_SQL:
+    runs-on: ubuntu-latest
+    name: MySQL Deploy Action
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - uses: gtadam/mysql-deploy-action@v1
+        with:
+          DATABASE_HOST: ${{secrets.SERVER_REMOTE}}
+          DATABASE_PORT: '3306'
+          DATABASE_NAME: ${{secrets.SERVER_DB_NAME}}
+          DATABASE_USERNAME:  ${{secrets.SERVER_DB_USERNAME}}
+          DATABASE_PASSWORD:   ${{secrets.SERVER_DB_PASSWORD}}
+          DATABASE_SCRIPT: 'script.sql'
+
+# Este job (Import_SQL) lo que hace es importar un archivo sql a la base de datos
+# Los secrets que se deben generar en el proyecto son:
+# SERVER_REMOTE: Es el nombre o IP del servidor remoto donde se va a importar el archivo SQL
+# SERVER_DB_USERNAME: Usuario de la base de datos
+# SERVER_DB_PASSWORD: Es la contraseña de la base de datos
+# SERVER_DB_NAME: Nombre de la base de datos
+
+
+  Deploy_staging:
+    name: Deploy Staging
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: 
+      name: staging
+      url: https://staging-ci-cd-test.herokuapp.com/
+    needs: [Import_SQL]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: akhileshns/heroku-deploy@v3.12.12 # This is the action
+        with:
+          heroku_api_key: ${{secrets.HEROKU_API_KEY_STAGING}}
+          heroku_app_name: ${{secrets.HEROKU_APP_NAME_STAGING}} #Must be unique in Heroku
+          heroku_email: "gastonbarbaccia@hotmail.com"
+
+
+# Este job (Deploy_staging) lo que hace es desplegar el codigo a heroku
+# Se creo un dominio con el nombre staging para poder diferenciar que es una web de prueba
+# Los secrets que se deben generar en el proyecto son:
+# HEROKU_API_KEY_STAGING: En un token que se genera en heroku en la seccion del profile del usuario
+# HEROKU_APP_NAME_STAGING: Es el nombre de la aplicaion, debe ser tal cual lo creamos en heroku
+# heroku_email: Agregar el email que uno quiera colocar para que le lleguen las notificaciones de error.
+# url: aca deberan cambiar la url por la de su aplicacion
+
+
+  Deploy_production:
+    name: Deploy Production
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: 
+      name: production
+      url: https://prod-ci-cd-test.herokuapp.com/
+    needs: [Deploy_staging]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: akhileshns/heroku-deploy@v3.12.12 # This is the action
+        with:
+          heroku_api_key: ${{secrets.HEROKU_API_KEY_PRODUCTION}}
+          heroku_app_name: ${{secrets.HEROKU_APP_NAME_PRODUCTION}} #Must be unique in Heroku
+          heroku_email: "gastonbarbaccia@hotmail.com"
+
+
+# Este job (Deploy_production) lo que hace es desplegar el codigo a heroku ya en un ambiente de produccion
+# Se creo un dominio con el nombre prod para poder diferenciar que es una web de produccion
+# Los secrets que se deben generar en el proyecto son:
+# HEROKU_API_KEY_STAGING: En un token que se genera en heroku en la seccion del profile del usuario
+# HEROKU_APP_NAME_STAGING: Es el nombre de la aplicaion, debe ser tal cual lo creamos en heroku
+# heroku_email: Agregar el email que uno quiera colocar para que le lleguen las notificaciones de error.
+# url: aca deberan cambiar la url por la de su aplicacion
